@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KHAAN GEO Audit Checkout — See how AI answers see your brand. Then buy the fix.</title>
+<style>
+  :root { --gold:#d4a017; --gold-hi:#f6dd8a; --bg:#0a0a0c; --panel:rgba(255,255,255,.06); --line:rgba(212,160,23,.35); --txt:#f2ead2; --dim:#b7ad8f; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:radial-gradient(1200px 700px at 70% -10%, #2a2103 0%, var(--bg) 55%); color:var(--txt); font-family:Georgia,'Times New Roman',serif; }
+  .wrap { max-width:880px; margin:0 auto; padding:40px 20px 80px; }
+  h1 { font-size:34px; letter-spacing:.06em; margin:6px 0 4px; color:var(--gold-hi); }
+  .brand { color:var(--gold); letter-spacing:.35em; font-size:13px; text-transform:uppercase; }
+  .tag { color:var(--dim); font-size:17px; margin:0 0 26px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:22px; backdrop-filter: blur(8px); margin-bottom:20px; }
+  label { display:block; font-size:13px; letter-spacing:.12em; text-transform:uppercase; color:var(--dim); margin:12px 0 6px; }
+  input, select { width:100%; padding:12px; border-radius:9px; border:1px solid var(--line); background:#121216; color:var(--txt); font-size:16px; }
+  button.cta { margin-top:18px; width:100%; padding:14px; font-size:17px; letter-spacing:.05em; border:0; border-radius:10px; cursor:pointer; background:linear-gradient(180deg,var(--gold-hi),var(--gold)); color:#1b1503; font-weight:700; }
+  button.cta:disabled { opacity:.55; cursor:wait; }
+  .strike { text-decoration:line-through; color:var(--dim); }
+  .price { font-size:30px; color:var(--gold-hi); }
+  .pill { display:inline-block; padding:2px 10px; border-radius:999px; border:1px solid var(--line); font-size:12px; color:var(--gold-hi); margin-right:6px; }
+  .row { display:flex; justify-content:space-between; gap:12px; padding:9px 0; border-bottom:1px dashed rgba(255,255,255,.12); font-size:15px; }
+  .ok { color:#9fe870; } .no { color:#ff8a7a; }
+  #demo-banner { display:none; background:#3a2c02; border:1px solid var(--gold); color:var(--gold-hi); padding:10px 14px; border-radius:10px; margin-bottom:16px; font-size:14px; }
+  .muted { color:var(--dim); font-size:13px; }
+  #paypal-buttons { margin-top:14px; }
+  #status { margin-top:14px; font-size:15px; min-height:22px; }
+  a { color:var(--gold-hi); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand">Khaan Superintelligence</div>
+  <h1>GEO Audit Checkout</h1>
+  <p class="tag">See how AI answers see your brand. Then buy the fix.</p>
+
+  <div id="demo-banner">DEMO MODE — PayPal sandbox credentials are not configured on this deployment, so checkout runs against a clearly-labeled simulation with the exact same flow. Add credentials (see README) and this becomes a live sandbox checkout.</div>
+
+  <div class="card">
+    <label for="brand">Brand / product name *</label>
+    <input id="brand" placeholder="e.g. NotePilot AI" autocomplete="off">
+    <label for="url">Website (optional)</label>
+    <input id="url" placeholder="https://example.com" autocomplete="off">
+    <label for="category">Category</label>
+    <select id="category"></select>
+    <button class="cta" id="preview-btn">Generate free preview</button>
+    <div id="status"></div>
+  </div>
+
+  <div class="card" id="preview-card" style="display:none">
+    <div id="preview-head"></div>
+    <div id="preview-rows"></div>
+    <p class="muted" id="preview-note"></p>
+  </div>
+
+  <div class="card" id="buy-card" style="display:none">
+    <div><span class="price">$299</span> <span class="strike">$499</span> <span class="pill">Founding price — first 5 audits</span></div>
+    <p>Full GEO Visibility Audit: more engines, a wider question set, competitor teardown, and a concrete fix plan. Delivered by email within 2 business days.</p>
+    <label for="email">Delivery email (optional — otherwise taken from your PayPal account)</label>
+    <input id="email" placeholder="you@company.com" autocomplete="email">
+    <div id="paypal-buttons"></div>
+    <button class="cta" id="demo-pay-btn" style="display:none">Simulate PayPal checkout (demo mode)</button>
+    <div id="pay-status"></div>
+  </div>
+
+  <div class="card" id="done-card" style="display:none">
+    <h2 style="color:var(--gold-hi);margin-top:0">Order confirmed</h2>
+    <div id="done-body"></div>
+  </div>
+
+  <p class="muted">Free preview = single engine, single sample, labeled as such. No accounts, no tracking cookies. Built for the PayPal AI Hackathon — payments run on the PayPal sandbox (no real money moves).</p>
+</div>
+
+<script>
+let cfg = null, lastPreview = null, currentOrder = null;
+
+async function api(path, body) {
+  const res = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+  return data;
+}
+
+async function init() {
+  cfg = await (await fetch('/api/config')).json();
+  const sel = document.getElementById('category');
+  for (const c of cfg.categories) { const o = document.createElement('option'); o.value = c.key; o.textContent = c.label; sel.appendChild(o); }
+  if (cfg.mode === 'demo') {
+    document.getElementById('demo-banner').style.display = 'block';
+    document.getElementById('demo-pay-btn').style.display = 'block';
+  } else {
+    const s = document.createElement('script');
+    s.src = 'https://www.paypal.com/sdk/js?client-id=' + encodeURIComponent(cfg.clientId) + '&currency=' + cfg.currency;
+    s.onload = renderButtons;
+    document.head.appendChild(s);
+  }
+}
+
+function renderButtons() {
+  paypal.Buttons({
+    createOrder: async () => {
+      const created = await api('/api/orders/create', orderPayload());
+      currentOrder = created;
+      return created.paypalOrderId;
+    },
+    onApprove: async () => {
+      document.getElementById('pay-status').textContent = 'Capturing payment…';
+      const r = await api('/api/orders/capture', { orderId: currentOrder.orderId, paypalOrderId: currentOrder.paypalOrderId });
+      showDone(r.order);
+    },
+    onCancel: () => { document.getElementById('pay-status').textContent = 'Checkout canceled — no charge. You can try again whenever you are ready.'; },
+    onError: (err) => { document.getElementById('pay-status').textContent = 'PayPal reported an error: ' + err + ' — please retry.'; },
+  }).render('#paypal-buttons');
+}
+
+function orderPayload() {
+  return {
+    brand: document.getElementById('brand').value.trim(),
+    category: document.getElementById('category').value,
+    email: document.getElementById('email').value.trim(),
+  };
+}
+
+document.getElementById('demo-pay-btn').addEventListener('click', async () => {
+  const st = document.getElementById('pay-status');
+  try {
+    st.textContent = 'Creating (simulated) PayPal order…';
+    const created = await api('/api/orders/create', orderPayload());
+    const r = await api('/api/orders/capture', { orderId: created.orderId, paypalOrderId: created.paypalOrderId });
+    showDone(r.order);
+  } catch (e) { st.textContent = 'Error: ' + e.message; }
+});
+
+document.getElementById('preview-btn').addEventListener('click', async () => {
+  const brand = document.getElementById('brand').value.trim();
+  const st = document.getElementById('status');
+  if (!brand) { st.textContent = 'Please enter a brand name first.'; return; }
+  const btn = document.getElementById('preview-btn');
+  btn.disabled = true; st.textContent = 'Sampling live AI answers (this can take up to a minute)…';
+  try {
+    const p = await api('/api/preview', { brand, url: document.getElementById('url').value.trim(), category: document.getElementById('category').value });
+    lastPreview = p;
+    st.textContent = '';
+    document.getElementById('preview-card').style.display = 'block';
+    document.getElementById('buy-card').style.display = 'block';
+    document.getElementById('preview-head').innerHTML =
+      '<h2 style="margin:0 0 6px;color:var(--gold-hi)">Visibility snapshot — ' + escapeHtml(p.brand) + '</h2>' +
+      '<span class="pill">Mentioned in ' + p.summary.mentioned + ' / ' + p.summary.asked + ' answers</span>' +
+      '<span class="pill">' + (p.mode === 'live' ? 'Live sample' : 'Labeled snapshot') + '</span>' +
+      '<p>' + escapeHtml(p.commentary) + '</p>';
+    document.getElementById('preview-rows').innerHTML = p.rows.map(r =>
+      '<div class="row"><span>' + escapeHtml(r.question) + '</span><span class="' + (r.brandMentioned ? 'ok' : 'no') + '">' +
+      (r.brandMentioned ? 'Mentioned' : 'Absent') + (r.competitorsFound && r.competitorsFound.length ? ' · instead: ' + escapeHtml(r.competitorsFound.join(', ')) : '') + '</span></div>').join('');
+    document.getElementById('preview-note').textContent = 'Engine: ' + p.engine + ' · Sampled at: ' + p.sampled_at + (p.note ? ' · ' + p.note : '');
+  } catch (e) { st.textContent = 'Error: ' + e.message; }
+  btn.disabled = false;
+});
+
+function showDone(order) {
+  document.getElementById('done-card').style.display = 'block';
+  document.getElementById('done-body').innerHTML =
+    '<div class="row"><span>Order</span><b>' + escapeHtml(order.id) + '</b></div>' +
+    '<div class="row"><span>PayPal order</span><b>' + escapeHtml(order.paypalOrderId || '') + '</b></div>' +
+    '<div class="row"><span>Item</span><span>GEO Visibility Audit — Founding</span></div>' +
+    '<div class="row"><span>Amount</span><b>$' + escapeHtml(order.amount) + ' ' + escapeHtml(order.currency) + (order.mode === 'demo' ? ' (simulated)' : ' (sandbox)') + '</b></div>' +
+    '<p>Your full audit will be delivered to ' + escapeHtml(order.payerEmail || order.email || 'your PayPal email') + ' within 2 business days.</p>';
+  document.getElementById('pay-status').textContent = '';
+  document.getElementById('done-card').scrollIntoView({ behavior: 'smooth' });
+}
+
+function escapeHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+
+init();
+</script>
+</body>
+</html>

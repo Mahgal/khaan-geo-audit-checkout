@@ -1,0 +1,1 @@
+{"description":"KHAAN GEO Audit Checkout — AI visibility audits you can buy in one click. PayPal AI Hackathon entry by Khaan Superintelligence.","engines":{"node":">=18"},"license":"MIT","name":"khaan-geo-audit-checkout","private":false,"scripts":{"dev":"node server.js","start":"node server.js"},"type":"commonjs","version":"0.1.0"}
