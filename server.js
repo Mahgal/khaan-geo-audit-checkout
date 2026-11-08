@@ -63,7 +63,16 @@ function sendHtml(res, status, title, inner) {
 async function captureFlow(order) {
   if (order.status === 'PAID') return { httpStatus: 200, payload: { ok: true, alreadyPaid: true, order } };
   const paypalOrderId = String(order.paypalOrderId || '');
-  let result = await paypal.captureOrder(paypalOrderId);
+  let result;
+  try {
+    result = await paypal.captureOrder(paypalOrderId);
+  } catch (err) {
+    if (err.statusCode && err.statusCode >= 400 && err.statusCode < 500) {
+      store.update(order.id, { status: 'CAPTURE_FAILED' });
+      return { httpStatus: err.statusCode, payload: { error: err.message, details: err.details, orderId: order.id } };
+    }
+    throw err;
+  }
   if (result.status !== 'COMPLETED') {
     // Ambiguous response — verify before declaring failure (INTEGRATION-TODO #5).
     const check = await paypal.getOrder(paypalOrderId);
