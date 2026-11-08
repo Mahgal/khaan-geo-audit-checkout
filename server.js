@@ -45,6 +45,44 @@ function rateLimited(ip, limit = 30, windowMs = 60_000) {
   return arr.length > limit;
 }
 
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function sendHtml(res, status, title, inner) {
+  const body = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(title)}</title><style>body{margin:0;background:#0a0a0c;color:#f2ead2;font-family:Georgia,'Times New Roman',serif}.wrap{max-width:680px;margin:0 auto;padding:56px 20px}.brand{color:#d4a017;letter-spacing:.35em;font-size:13px;text-transform:uppercase}h1{color:#f6dd8a;letter-spacing:.04em}.card{background:rgba(255,255,255,.06);border:1px solid rgba(212,160,23,.35);border-radius:14px;padding:22px;margin-top:20px}.row{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px dashed rgba(255,255,255,.12)}a{color:#f6dd8a}</style></head><body><div class="wrap"><div class="brand">Khaan Superintelligence</div>${inner}</div></body></html>`;
+  res.writeHead(status, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Length': Buffer.byteLength(body) });
+  res.end(body);
+}
+
+/**
+ * Shared capture flow used by POST /api/orders/capture and by the
+ * /checkout/success return page. Idempotent: a PAID order is returned
+ * as-is. Returns { httpStatus, payload } mirroring the API response.
+ */
+async function captureFlow(order) {
+  if (order.status === 'PAID') return { httpStatus: 200, payload: { ok: true, alreadyPaid: true, order } };
+  const paypalOrderId = String(order.paypalOrderId || '');
+  let result = await paypal.captureOrder(paypalOrderId);
+  if (result.status !== 'COMPLETED') {
+    // Ambiguous response — verify before declaring failure (INTEGRATION-TODO #5).
+    const check = await paypal.getOrder(paypalOrderId);
+    if (check.status === 'COMPLETED') result = check;
+  }
+  if (result.status !== 'COMPLETED') {
+    store.update(order.id, { status: 'CAPTURE_FAILED' });
+    return { httpStatus: 502, payload: { error: `capture did not complete (status: ${result.status})`, orderId: order.id } };
+  }
+  const capture = result.purchase_units?.[0]?.payments?.captures?.[0] || {};
+  const paid = store.update(order.id, {
+    status: 'PAID',
+    paypalCaptureId: capture.id || null,
+    payerEmail: result.payer?.email_address || order.email || null,
+    paid_at: new Date().toISOString(),
+  });
+  return { httpStatus: 200, payload: { ok: true, order: paid } };
+}
+
 function sendJson(res, status, obj) {
   const body = JSON.stringify(obj);
   res.writeHead(status, { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) });
@@ -113,28 +151,35 @@ const server = http.createServer(async (req, res) => {
 
     if (url.pathname === '/api/orders/capture' && req.method === 'POST') {
       const body = await readBody(req);
-      const order = store.get(String(body.orderId || ''));
+      const order = body.orderId
+        ? store.get(String(body.orderId))
+        : store.findByPaypalOrderId(String(body.paypalOrderId || ''));
       if (!order) return sendJson(res, 404, { error: 'order not found' });
-      if (order.status === 'PAID') return sendJson(res, 200, { ok: true, alreadyPaid: true, order });
-      const paypalOrderId = String(body.paypalOrderId || order.paypalOrderId || '');
-      let result = await paypal.captureOrder(paypalOrderId);
-      if (result.status !== 'COMPLETED') {
-        // Ambiguous response — verify before declaring failure (INTEGRATION-TODO #5).
-        const check = await paypal.getOrder(paypalOrderId);
-        if (check.status === 'COMPLETED') result = check;
+      const { httpStatus, payload } = await captureFlow(order);
+      return sendJson(res, httpStatus, payload);
+    }
+
+    // PayPal redirect-checkout return pages (URLs come from PUBLIC_BASE_URL).
+    if (url.pathname === '/checkout/success' && req.method === 'GET') {
+      const order = store.findByPaypalOrderId(url.searchParams.get('token') || '');
+      if (!order) return sendHtml(res, 404, 'Order not found', '<h1>Order not found</h1><div class="card"><p>We could not match this PayPal return to an order. If you completed a payment, contact us with your PayPal receipt.</p></div>');
+      const { payload } = await captureFlow(order);
+      const o = payload.order || store.get(order.id);
+      if (payload.ok && o) {
+        return sendHtml(res, 200, 'Order confirmed — KHAAN GEO Audit', `<h1>Order confirmed</h1><div class="card">
+          <div class="row"><span>Order</span><b>${esc(o.id)}</b></div>
+          <div class="row"><span>PayPal order</span><b>${esc(o.paypalOrderId || '')}</b></div>
+          <div class="row"><span>Item</span><span>GEO Visibility Audit — Founding</span></div>
+          <div class="row"><span>Amount</span><b>$${esc(o.amount)} ${esc(o.currency)}${o.mode === 'demo' ? ' (simulated)' : ' (sandbox)'}</b></div>
+          <p>Your full audit will be delivered to ${esc(o.payerEmail || o.email || 'your PayPal email')} within 2 business days.</p></div>`);
       }
-      if (result.status !== 'COMPLETED') {
-        store.update(order.id, { status: 'CAPTURE_FAILED' });
-        return sendJson(res, 502, { error: `capture did not complete (status: ${result.status})`, orderId: order.id });
-      }
-      const capture = result.purchase_units?.[0]?.payments?.captures?.[0] || {};
-      const paid = store.update(order.id, {
-        status: 'PAID',
-        paypalCaptureId: capture.id || null,
-        payerEmail: result.payer?.email_address || order.email || null,
-        paid_at: new Date().toISOString(),
-      });
-      return sendJson(res, 200, { ok: true, order: paid });
+      return sendHtml(res, 502, 'Payment not completed', `<h1>Payment did not complete</h1><div class="card"><p>${esc(payload.error || 'Capture failed.')} No charge was confirmed — you can safely try again from the <a href="/">checkout page</a>.</p></div>`);
+    }
+
+    if (url.pathname === '/checkout/cancel' && req.method === 'GET') {
+      const order = store.findByPaypalOrderId(url.searchParams.get('token') || '');
+      if (order && order.status === 'CREATED') store.update(order.id, { status: 'CANCELED' });
+      return sendHtml(res, 200, 'Checkout canceled', '<h1>Checkout canceled</h1><div class="card"><p>No charge was made. You can return to the <a href="/">checkout page</a> whenever you are ready.</p></div>');
     }
 
     // Static files
@@ -152,6 +197,6 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, () => {
-  console.log(`KHAAN GEO Audit Checkout listening on http://localhost:${PORT} (PayPal mode: ${paypal.mode()})`);
+server.listen(PORT, process.env.HOST || undefined, () => {
+  console.log(`KHAAN GEO Audit Checkout listening on port ${PORT} (PayPal mode: ${paypal.mode()})`);
 });
