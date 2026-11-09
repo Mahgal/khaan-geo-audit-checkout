@@ -15,35 +15,36 @@ We run [KHAAN.SI](https://khaan.si), a live AI answer engine that searches the w
 ## What it does
 
 1. **Free preview (the AI half).** Enter a brand and a category. The app generates five buyer-style questions ("What is the best AI video generator in 2026?"), samples **live** answers from the KHAAN.SI search/answer pipeline, and reports, per question: whether the brand was **Mentioned** or **Absent**, and which competitors were named instead. It closes with a short AI commentary that only restates the sampled facts. Everything is labeled: single engine, single sample, with a timestamp.
-2. **Checkout (the PayPal half).** The full GEO Visibility Audit (founding price **$299**, list $499 — the same pricing as our live service page at khaan.si/geo) is sold through **PayPal Checkout**: the order is created and captured **server-side** with the Orders v2 API, the price is fixed in server code (the client can never name its own price), and the buyer pays with a PayPal sandbox account in the official popup. A confirmation page shows the order id, the PayPal order id, the amount, and delivery terms (full audit by email within 2 business days).
+2. **Checkout (the PayPal half).** The full GEO Visibility Audit (founding price **$299**, list $499 — the same pricing as our live service page at khaan.si/geo) is sold through **PayPal Checkout**: the order is created and captured **server-side** with the Orders v2 API, the price is fixed in server code (the client can never name its own price), and the buyer pays with a PayPal sandbox account in the official popup. A confirmation page shows the order id, the PayPal order id, the amount, and delivery terms (full audit by email within 5 business days).
 3. **Honest degradation.** If live sampling is unavailable, the preview falls back to a **clearly labeled snapshot** using a fictional brand — never silent fake "live" data. If PayPal credentials are not configured, the app runs in **Demo Mode**: the checkout walks the exact same flow against simulated PayPal responses, badged as simulated everywhere it appears.
 
 ## How we built it
 
-- **Zero-dependency Node.js** service (`server.js` + `lib/`): serves the single-page storefront and four JSON endpoints — `/api/preview`, `/api/orders/create`, `/api/orders/capture`, `/api/config`. Orders persist to a JSON store (`lib/store.js`); production swaps that module for Cloudflare KV with the same record shape.
-- **AI sampling** (`lib/preview.js`): category question templates → `POST https://khaan.si/api/ask` (our production multi-source search + Workers AI synthesis pipeline) → normalized string matching for brand/competitor presence.
+- **Zero-dependency Node.js** service (`server.js` + `lib/`): serves the single-page storefront and five JSON endpoints — `/api/preview`, `/api/orders/create`, `/api/orders/capture`, `/api/config`, `/api/health`. Orders persist to a JSON store (`lib/store.js`).
+- **AI sampling** (`lib/preview.js`): category question templates → `POST https://khaan.si/api/ask` (our production multi-source search-and-answer pipeline — hosted LLM synthesis, including Cloudflare Workers AI) → normalized string matching for brand/competitor presence.
 - **Payments** (`lib/paypal.js`): OAuth2 client-credentials → Orders v2 create/capture, `PayPal-Request-Id` idempotency, capture verification fallback, amount hard-coded server-side. Frontend uses the PayPal JS SDK Buttons and only ever receives the public client-id from `/api/config`.
-- **Design**: single page, black-and-gold, no account, no tracking — preview to paid order in under a minute.
+- **Design**: single page, black-and-gold, no account, no tracking — preview to paid order in about a minute.
 
 ## Tools (as required by the hackathon)
 
 - **PayPal Developer Platform** — JS SDK + Orders v2 API, sandbox environment (the payment core of the product).
-- **KHAAN.SI answer pipeline** — our own multi-source live web search (Bing HTML/RSS + DDG Lite) with answer synthesis on **Cloudflare Workers AI (Llama 3.3 70B)**, with numbered sources (the audit engine).
-- **Node.js** (runtime), **Cloudflare** (hosting of KHAAN.SI and, for the hosted demo, Pages/Workers/KV).
+- **KHAAN.SI answer pipeline** — our own multi-source live web search (Bing HTML/RSS + DDG Lite) with hosted LLM answer synthesis (multi-provider, including Cloudflare Workers AI), with numbered sources (the audit engine).
+- **Node.js** — the entire app runtime; zero third-party dependencies.
+- **Cloudflare** — DNS and hosting for KHAAN.SI, whose answer API the preview samples.
 
 ## Run it locally
 
 Requirements: Node.js ≥ 18. No `npm install` needed (zero dependencies).
 
 ```bash
-git clone <REPO_URL>
-cd paypal-hackathon-2026
+git clone https://github.com/Mahgal/khaan-geo-audit-checkout.git
+cd khaan-geo-audit-checkout
 node server.js
 # open http://localhost:8080
 ```
 
 - **Zero-config**: with no credentials the app boots in **Demo Mode** — generate a preview, walk the (simulated) checkout, get an order confirmation. Perfect for a first look.
-- **Real sandbox checkout**: copy `.env.example` to `.env`, fill `PAYPAL_CLIENT_ID` / `PAYPAL_CLIENT_SECRET` from developer.paypal.com → Apps & Credentials → Sandbox → your app, restart. The official PayPal button renders; pay with any Sandbox **Personal** test account (Dashboard → Testing Tools → Sandbox Accounts). See `docs/INTEGRATION-TODO.md` for the full wiring checklist and acceptance tests.
+- **Real sandbox checkout**: copy `.env.example` to `.env`, fill `PAYPAL_CLIENT_ID` / `PAYPAL_CLIENT_SECRET` from developer.paypal.com → Apps & Credentials → Sandbox → your app, restart. The official PayPal button renders; pay with any Sandbox **Personal** test account (Dashboard → Testing Tools → Sandbox Accounts).
 - Preview sampling calls the public KHAAN.SI API; if it is unreachable you will see the labeled snapshot mode instead — that is by design.
 
 ## Challenges & what we learned
@@ -59,10 +60,3 @@ Swap the sandbox credentials for live ones and this checkout becomes the product
 ## License
 
 MIT — see `LICENSE`.
-
-## More in this repo
-
-- `docs/RULES.md` — the hackathon rules as verified from official sources on 2026-11-08.
-- `docs/DESIGN.md` — one-page design, judging-criteria mapping, build schedule.
-- `docs/INTEGRATION-TODO.md` — every PayPal call site and its acceptance test.
-- `SUBMISSION.md` — submission checklist and current status.
