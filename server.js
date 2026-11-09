@@ -180,7 +180,7 @@ const server = http.createServer(async (req, res) => {
           <div class="row"><span>PayPal order</span><b>${esc(o.paypalOrderId || '')}</b></div>
           <div class="row"><span>Item</span><span>GEO Visibility Audit — Founding</span></div>
           <div class="row"><span>Amount</span><b>$${esc(o.amount)} ${esc(o.currency)}${o.mode === 'demo' ? ' (simulated)' : ' (sandbox)'}</b></div>
-          <p>Your full audit will be delivered to ${esc(o.payerEmail || o.email || 'your PayPal email')} within 2 business days.</p></div>`);
+          <p>Your full audit will be delivered to ${esc(o.payerEmail || o.email || 'your PayPal email')} within 5 business days.</p></div>`);
       }
       return sendHtml(res, 502, 'Payment not completed', `<h1>Payment did not complete</h1><div class="card"><p>${esc(payload.error || 'Capture failed.')} No charge was confirmed — you can safely try again from the <a href="/">checkout page</a>.</p></div>`);
     }

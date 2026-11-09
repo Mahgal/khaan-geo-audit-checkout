@@ -56,7 +56,7 @@
 
   <div class="card" id="buy-card" style="display:none">
     <div><span class="price">$299</span> <span class="strike">$499</span> <span class="pill">Founding price — first 5 audits</span></div>
-    <p>Full GEO Visibility Audit: more engines, a wider question set, competitor teardown, and a concrete fix plan. Delivered by email within 2 business days.</p>
+    <p>Full GEO Visibility Audit: more engines, a wider question set, competitor teardown, and a concrete fix plan. Delivered by email within 5 business days.</p>
     <label for="email">Delivery email (optional — otherwise taken from your PayPal account)</label>
     <input id="email" placeholder="you@company.com" autocomplete="email">
     <div id="paypal-buttons"></div>
@@ -164,7 +164,7 @@ function showDone(order) {
     '<div class="row"><span>PayPal order</span><b>' + escapeHtml(order.paypalOrderId || '') + '</b></div>' +
     '<div class="row"><span>Item</span><span>GEO Visibility Audit — Founding</span></div>' +
     '<div class="row"><span>Amount</span><b>$' + escapeHtml(order.amount) + ' ' + escapeHtml(order.currency) + (order.mode === 'demo' ? ' (simulated)' : ' (sandbox)') + '</b></div>' +
-    '<p>Your full audit will be delivered to ' + escapeHtml(order.payerEmail || order.email || 'your PayPal email') + ' within 2 business days.</p>';
+    '<p>Your full audit will be delivered to ' + escapeHtml(order.payerEmail || order.email || 'your PayPal email') + ' within 5 business days.</p>';
   document.getElementById('pay-status').textContent = '';
   document.getElementById('done-card').scrollIntoView({ behavior: 'smooth' });
 }
