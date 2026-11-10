@@ -2,7 +2,7 @@
 
 **Type a brand. Watch AI search answer live buyer questions — and see whether your brand is in the answer. Then check out with PayPal and order the full audit.**
 
-- Live demo: `<DEMO_URL>` (placeholder — replaced at deploy time)
+- Live demo: `https://geo-demo.khaan.si` (placeholder — replaced at deploy time)
 - Demo video: `<VIDEO_URL>` (placeholder)
 - Built for the **PayPal AI Hackathon** (Devpost) by **Khaan Superintelligence** — founded November 2026, Anchorage, Alaska, bootstrapped, pre-revenue. We say this plainly because this README contains no invented users, revenue, or testimonials — only what the product demonstrably does.
 
