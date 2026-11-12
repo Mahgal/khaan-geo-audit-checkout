@@ -43,7 +43,13 @@
     <label for="url">Website (optional)</label>
     <input id="url" placeholder="https://example.com" autocomplete="off">
     <label for="category">Category</label>
-    <select id="category"></select>
+    <select id="category">
+      <option value="ai-video">AI video tools</option>
+      <option value="ai-chatbots">AI chatbots</option>
+      <option value="vpn">VPN services</option>
+      <option value="ai-image">AI image tools</option>
+      <option value="custom">Custom category</option>
+    </select>
     <button class="cta" id="preview-btn">Generate free preview</button>
     <div id="status"></div>
   </div>
@@ -83,13 +89,24 @@ async function api(path, body) {
 }
 
 async function init() {
-  cfg = await (await fetch('/api/config')).json();
-  const sel = document.getElementById('category');
-  for (const c of cfg.categories) { const o = document.createElement('option'); o.value = c.key; o.textContent = c.label; sel.appendChild(o); }
+  try {
+    cfg = await (await fetch('/api/config')).json();
+  } catch (e) {
+    // Config unreachable (flaky connection): the category list is already
+    // inlined in the HTML above, so the preview still works. One retry for
+    // the PayPal SDK, then stay usable without it.
+    try { await new Promise(r => setTimeout(r, 2000)); cfg = await (await fetch('/api/config')).json(); } catch (e2) { return; }
+  }
+  if (cfg && cfg.categories && cfg.categories.length) {
+    const sel = document.getElementById('category');
+    sel.innerHTML = '';
+    for (const c of cfg.categories) { const o = document.createElement('option'); o.value = c.key; o.textContent = c.label; sel.appendChild(o); }
+  }
+  if (!cfg) return;
   if (cfg.mode === 'demo') {
     document.getElementById('demo-banner').style.display = 'block';
     document.getElementById('demo-pay-btn').style.display = 'block';
-  } else {
+  } else if (cfg.clientId) {
     const s = document.createElement('script');
     s.src = 'https://www.paypal.com/sdk/js?client-id=' + encodeURIComponent(cfg.clientId) + '&currency=' + cfg.currency;
     s.onload = renderButtons;
